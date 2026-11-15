@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Scroll 3D object stage</title>
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+  <!-- Layer order, back to front: #bg, #css-layer (DOM panels in 3D), #stage (WebGL), main (text). -->
+  <div id="bg"></div>
+  <div id="css-layer"></div>
+  <canvas id="stage" aria-hidden="true"></canvas>
+
+  <!-- Panels live here until CSS3DRenderer takes them. Real DOM: selectable, translatable, indexable. -->
+  <div id="panels" hidden>
+    <div class="panel" id="panel-screen">
+      <svg viewBox="0 0 480 300" width="480" height="300" role="img" aria-label="Signal diagram">
+        <path d="M24 40 H456" />
+        <path d="M24 90 C120 90 120 150 216 150 S312 90 456 90" />
+        <path d="M24 210 H160 L200 170 L260 250 L300 210 H456" />
+        <path d="M24 270 H456" />
+      </svg>
+    </div>
+  </div>
+
+  <main>
+    <section class="chapter" data-chapter="intro">
+      <div class="pin">
+        <div class="copy">
+          <p class="eyebrow">01 / Object</p>
+          <h1>Your object, drawn into the page.</h1>
+          <p>Scroll. It sketches itself, comes apart, turns solid, then hands the page a live diagram.</p>
+        </div>
+        <div class="anchor"></div>
+      </div>
+    </section>
+
+    <section class="chapter" data-chapter="sketch">
+      <div class="pin">
+        <div class="copy">
+          <p class="eyebrow">02 / Sketch</p>
+          <h2>Every edge is drawn, not shown.</h2>
+          <p>Hidden lines stay hidden. Parts draw one after another as you scroll.</p>
+        </div>
+        <div class="anchor"></div>
+      </div>
+    </section>
+
+    <section class="chapter" data-chapter="explode">
+      <div class="pin">
+        <div class="copy">
+          <p class="eyebrow">03 / Parts</p>
+          <h2>Separate it to explain it.</h2>
+          <p>Each part travels along its own axis away from the centre of mass.</p>
+        </div>
+        <div class="anchor"></div>
+      </div>
+    </section>
+
+    <section class="chapter" data-chapter="solid">
+      <div class="pin">
+        <div class="copy">
+          <p class="eyebrow">04 / Material</p>
+          <h2>Sketch dissolves into material.</h2>
+          <p>A noisy sweep swaps paper for physically based shading, edge lit with the brand accent.</p>
+        </div>
+        <div class="anchor"></div>
+      </div>
+    </section>
+
+    <section class="chapter" data-chapter="detail">
+      <div class="pin">
+        <div class="copy">
+          <p class="eyebrow">05 / Detail</p>
+          <h2>The screen is a real web page.</h2>
+          <p>The panel is HTML and SVG pinned to the object with the same camera, and it occludes correctly.</p>
+        </div>
+        <div class="anchor"></div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

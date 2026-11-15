@@ -1,0 +1,45 @@
+:root {
+  --ink: #15171a;
+  --paper: #f3f0e8;
+  --accent: #ff5a36;
+  --bg: var(--paper);   /* animated from JS together with the 3D object */
+  --fg: var(--ink);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); }
+body { color: var(--fg); font: 18px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+
+#bg        { position: fixed; inset: 0; z-index: 0; background: var(--bg); }
+#css-layer { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+#stage     { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; display: block; }
+main       { position: relative; z-index: 3; }   /* text above the object. Swap 2 and 3 to put the object in front. */
+
+.chapter { height: 240vh; }
+.pin {
+  position: sticky; top: 0;
+  height: 100vh; height: 100svh;
+  display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 4vw;
+  padding: 0 6vw;
+}
+.chapter:nth-child(even) .copy { order: 2; }
+.copy { max-width: 34rem; }
+.copy h1, .copy h2 { font-size: clamp(2rem, 4.4vw, 4rem); line-height: 1.04; margin: 0 0 1rem; letter-spacing: -0.02em; }
+.eyebrow { font: 600 0.75rem/1 ui-monospace, monospace; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin: 0 0 1rem; }
+.anchor { width: min(40vw, 62vh); aspect-ratio: 1; justify-self: center; } /* the 3D object fills this box */
+
+.panel { width: 480px; height: 300px; backface-visibility: hidden; background: var(--paper); border: 2px solid var(--ink); border-radius: 6px; overflow: hidden; }
+.panel svg { display: block; }
+.panel path { fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+@media (max-width: 800px) {
+  .pin { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; padding: 0 6vw; }
+  .chapter:nth-child(even) .copy { order: 0; }
+  .copy { align-self: end; }
+  .anchor { width: min(70vw, 38vh); }
+}
+
+@media (prefers-reduced-motion: reduce) { .chapter { height: 100vh; } }
+
+.no-webgl #stage, .no-webgl #css-layer { display: none; }
+.no-webgl .anchor { background: color-mix(in srgb, var(--ink) 8%, transparent); border-radius: 12px; }
