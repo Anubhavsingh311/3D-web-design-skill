@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { engine, animate } from 'animejs';
 import { CONFIG, poseFor } from './config.js';
-import { createStage } from './stage.js';
+import { createStage, disposeTree } from './stage.js';
 import { loadModel, DEMOS, makeDemoObject, prepareObject, applyExplode, auditObject, addSlot } from './ingest.js';
 import { createLooks } from './looks.js';
 import { createTheme, readTokens } from './theme.js';
@@ -58,7 +58,7 @@ export function createExperience(options = {}) {
     if (demo && DEMOS[demo]) raw = DEMOS[demo]();
     else if (url) raw = await loadModel(url, stage.renderer);
     else raw = makeDemoObject();
-    if (disposed) return;
+    if (disposed) { disposeTree(raw); return; } // destroyed while loading: nothing owns the model yet, so free it here
 
     const obj = prepareObject(raw, { size: cfg.objectSize, fit: cfg.fit, explode: cfg.explode });
     for (const [key, spec] of Object.entries(cfg.slots || {})) if (!obj.slots[key]) addSlot(obj, key, spec);
@@ -71,7 +71,7 @@ export function createExperience(options = {}) {
     const floater = new THREE.Group();
     floater.add(obj.pivot);
     stage.scene.add(floater);
-    teardown.push(() => { stage.scene.remove(floater); disposeModel(obj.raw); });
+    teardown.push(() => { stage.scene.remove(floater); disposeTree(obj.raw); });
 
     let dissolveCenter = null;
     const from = cfg.dissolve?.from && obj.slots[cfg.dissolve.from];
@@ -160,7 +160,10 @@ export function createExperience(options = {}) {
 
     // ---- intro draw-in, pointer, loop --------------------------------------------------------
     const intro = { v: cfg.intro && !reduced.matches && !flags.verify ? 0 : 1 };
-    if (intro.v < 1) animate(intro, { v: 1, duration: 1400, ease: 'outCubic' });
+    if (intro.v < 1) {
+      const introAnim = animate(intro, { v: 1, duration: 1400, ease: 'outCubic' });
+      teardown.push(() => introAnim.revert());
+    }
 
     const pointer = { x: 0, y: 0, sx: 0, sy: 0 };
     on(window, 'pointermove', (e) => {
@@ -245,7 +248,7 @@ export function createExperience(options = {}) {
     const debug = mountDebug({ api, flags, signal });
     teardown.push(() => debug.dispose());
 
-    stage.renderer.setAnimationLoop((now) => {
+    const frame = (now) => {
       const dt = now - last;
       last = now;
       engine.update();
@@ -280,7 +283,18 @@ export function createExperience(options = {}) {
       api.frames++;
       if (!firstFrameSeen) { firstFrameSeen = true; root.classList.add('stage-ready'); }
       if (!flags.verify) monitor.update(dt);
+    };
+    stage.renderer.setAnimationLoop(frame);
+
+    // Stop the loop while the page is hidden (background tab, minimised window, another virtual desktop) and resume on
+    // return. Browsers throttle requestAnimationFrame in hidden tabs, but not on every platform and not for an occluded
+    // window, and the anime.js clock would otherwise jump. `last` resets so the first frame back is not a stall.
+    on(document, 'visibilitychange', () => {
+      if (document.hidden) { stage.renderer.setAnimationLoop(null); return; }
+      last = performance.now();
+      stage.renderer.setAnimationLoop(frame);
     });
+    if (document.hidden) stage.renderer.setAnimationLoop(null); // mounted in a background tab: wait to be shown
     teardown.push(() => { root.classList.remove('stage-ready', 'no-webgl', 'stage-error', 'context-lost'); layers.forEach((el) => { el.style.transform = ''; }); });
   }
 
@@ -299,15 +313,4 @@ export function createExperience(options = {}) {
   }
 
   return { ready, destroy };
-}
-
-// Frees the GPU resources of a loaded model. The geometry and textures belong to the model, not to the layers.
-function disposeModel(raw) {
-  raw.traverse((o) => {
-    if (o.geometry) o.geometry.dispose();
-    for (const m of [].concat(o.material || [])) {
-      for (const k of Object.keys(m)) if (m[k]?.isTexture) m[k].dispose();
-      m.dispose();
-    }
-  });
 }

@@ -26,7 +26,7 @@ Everything marked "in the starter" is implemented and exercised by `verify.mjs`.
 - `?verify` disables the monitor so captures are deterministic. Software GL would otherwise drop to low immediately.
 
 ## Rendering costs
-- Pixel ratio is the biggest lever. Cap at 2, and at 1.5 below 800 px wide.
+- Pixel ratio is the biggest lever. Never pass raw `devicePixelRatio` to `setPixelRatio`. `stage.resize` uses `min(devicePixelRatio, CONFIG.maxDPR (2), tier.dpr, 1.5 below 800 px wide)`, so a 3x phone renders at 1.5 and a Retina desktop at 2. The tier monitor lowers it further on slow GPUs.
 - The fill, solid and lines layers triple draw calls. Merge small meshes first.
 - The dissolve shader is cheap. It no longer recomputes a `Box3` every frame: the range is computed once, in object space.
 - `renderer.info.render.calls` and `.triangles` are in the `?debug` HUD.
@@ -37,8 +37,12 @@ Everything marked "in the starter" is implemented and exercised by `verify.mjs`.
 - `will-change: transform` on the canvas is not needed: the stage only moves outside the experience.
 
 ## Resize, fonts, URL bar
+- Resize events are debounced (150 ms `setTimeout`, cleared on teardown) and the handler returns without work when the stage box did not change. Do not call `renderer.setSize` or rebuild the timeline directly from a `resize` listener: it fires continuously while a window is dragged and on every orientation change.
 - One stage box (`readStageBox`) sizes canvas, CSS3D layer and camera from the stuck `.pin` (100svh). A resize rebuilds only if width or pin height really changed, so a phone's URL bar sliding costs nothing. NOT verified on a real phone.
 - Rebuild also runs on `document.fonts.ready` and on `prefers-reduced-motion` change. A rebuild after resize restores the same scroll position (verified: timeline time equals scrolled pixels afterwards).
+
+## Hidden document (in the starter, verified)
+`experience.js` listens to `visibilitychange`. While `document.hidden` is true it calls `renderer.setAnimationLoop(null)`, and on return it resets the frame clock and restarts the loop, so the monitor never sees a giant delta and anime.js time-based tweens do not run on a stale clock. Browsers already throttle `requestAnimationFrame` in background tabs, but not on every platform and not for an occluded window or another virtual desktop, so the explicit stop is the reliable version. A stage mounted in an already hidden tab waits for the first `visible` event. `verify.mjs` fakes `document.hidden`, asserts the frame counter freezes, then asserts it advances again.
 
 ## Context loss (in the starter, verified)
 Mobile browsers drop WebGL contexts in the background. `stage.js` calls `preventDefault()` on `webglcontextlost` so the browser may restore, adds `html.context-lost` for styling, and on restore rebuilds the PMREM environment (a render target, which does not survive). Three re-creates its own GPU state. Verified with `WEBGL_lose_context`: the object renders again after restore. The canvas is reused across remounts, so the context is NOT force-released on `destroy()` unless you pass `releaseContext: true` for a canvas you are discarding.
@@ -57,6 +61,7 @@ Mobile browsers drop WebGL contexts in the background. `stage.js` calls `prevent
 `npm run build:single` makes ONE `dist-single/index.html` with JS, CSS and the GLB inlined (`vite-plugin-singlefile`). Verified: an 812 KB file with a meshopt GLB boots from `file://`, renders, makes no external requests and logs no errors (`verify.mjs --single`). Draco and KTX2 are left out of this mode. Use it for hosts that take one HTML file, for emailing a preview, or for a hosted-page tool, see `11-integration-and-delivery.md`.
 
 ## Memory
-- Dispose on teardown (the starter does): geometries, textures, materials, render targets, the environment, the CSS3D scene.
+- Dispose on teardown (the starter does): geometries, textures, materials, render targets, the environment, the CSS3D scene. WebGL resources are never garbage collected, so one `disposeTree(root)` (`stage.js`) walks a subtree and frees geometry, material arrays, textures in material slots and textures in `ShaderMaterial` uniforms. It runs on the loaded model, then once more on the whole scene as a safety net, and `destroy()` during the model download frees the late-arriving model too. A bare `obj.material.dispose()` is not enough: it misses material arrays and every texture.
+- The verifier reads the OLD renderer's `info.memory` straight after `unmount()` and requires zero geometries and zero textures.
 - Do not allocate vectors or colours in the render loop. The starter reuses temporaries.
 - A model's textures are the VRAM cost. 2048 by 2048 is about 21 MB with mips. Five of them is a phone problem.

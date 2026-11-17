@@ -11,7 +11,7 @@ Build a page where one 3D object lives inside the layout, changes state as the r
 
 | Asset | What it is | Evidence it works |
 |---|---|---|
-| `assets/starter/` | Vite project: stage, ingest, looks, schedule, choreography, DOM registration, lifecycle, tiers, debug hooks | `npm test` (35 Node tests) and `scripts/verify.mjs` (about 145 browser checks over 3 viewports plus reduced motion, no WebGL, remount, context loss, resize, posters, single-file build) |
+| `assets/starter/` | Vite project: stage, ingest, looks, schedule, choreography, DOM registration, lifecycle, tiers, debug hooks | `npm test` (36 Node tests) and `scripts/verify.mjs` (about 145 browser checks over 3 viewports plus reduced motion, no WebGL, remount, context loss, resize, posters, single-file build) |
 | `assets/fixtures/*.glb` | Six real GLBs: parts with an Empty slot, a quad slot authored facing the wrong way, a five-layer stack, one fused smooth knot, and meshopt and Draco compressed variants | Each loaded through the real GLTFLoader path in the verifier |
 | `scripts/inspect-model.mjs` | Zero-dependency GLB audit: triangles, texture memory, explode units, markers, budget findings with fix commands | Run it before writing any code |
 | `scripts/verify.mjs` | Builds, serves the production bundle, asserts numbers in headless Chromium with software WebGL | Exit code 1 on any failure |
@@ -90,7 +90,7 @@ Read `references/06-blend-into-site.md`. Minimum bar before calling it done:
 - Exactly one contact cue: `grain`, `shadow` or `none` in `CONFIG.contact`.
 
 ### Step 7: Resilience
-Read `references/07-performance-and-fallbacks.md`. The starter already implements: reduced motion (cuts between poses), no WebGL (`.no-webgl`, readable page), quality tiers with a frame-time monitor, context loss recovery, offscreen render skip, resize and font rebuilds, and a real `destroy()`. Your job is to keep the text in the DOM, add poster images for the fallback, and respect the budgets.
+Read `references/07-performance-and-fallbacks.md`. The starter already implements: reduced motion (cuts between poses), no WebGL (`.no-webgl`, readable page), quality tiers with a frame-time monitor, context loss recovery, offscreen render skip, a render loop that stops while the document is hidden, debounced resize and font rebuilds, and a real `destroy()` that frees every geometry, material and texture (also when called while the model is still loading). Your job is to keep the text in the DOM, add poster images for the fallback, and respect the budgets.
 
 ### Step 8: Verify (do not skip)
 Read `references/08-verification.md`. Then run, from the project folder:
@@ -156,6 +156,8 @@ Verified in the 4.5.0 source and in the browser:
 6. Documented features that the code did not have (tiers, context loss, offscreen pause, destroy).
 7. An untested GLB path: the old starter only ever ran the procedural object.
 8. The recommended `optimize` command itself: with default flags it merged the parts and deleted the markers the rest of the skill depends on.
+9. GPU memory left behind: `destroy()` during the model load never freed the loaded model, and nothing swept up what a layer forgot. Now `disposeTree` runs on the model and again on the whole scene, and the verifier asserts zero geometries and textures after unmount.
+10. A render loop that kept running in a hidden document (and a clock that jumped on return). The loop now stops on `visibilitychange` and resumes with a reset delta.
 
 ## Originality and licensing
 

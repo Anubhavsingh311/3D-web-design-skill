@@ -2,6 +2,20 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { TIERS } from './perf.js';
 
+// Frees the GPU resources of everything under `root`: geometries, materials (single or array), textures held
+// by material slots and textures held in ShaderMaterial uniforms. WebGL resources are not garbage collected,
+// so every mount must be paired with this. Safe to call twice and on shared resources (three re-uploads on next use).
+export function disposeTree(root) {
+  root.traverse((o) => {
+    o.geometry?.dispose();
+    for (const m of [].concat(o.material || [])) {
+      for (const v of Object.values(m)) if (v?.isTexture) v.dispose();
+      for (const u of Object.values(m.uniforms || {})) if (u?.value?.isTexture) u.value.dispose();
+      m.dispose();
+    }
+  });
+}
+
 // Creates the fixed, transparent WebGL stage. Returns null when WebGL is unavailable so the caller
 // can fall back to the static page.
 export function createStage(canvas, { config, tierIndex = 0, onContextLost, onContextRestored } = {}) {
@@ -91,6 +105,7 @@ export function createStage(canvas, { config, tierIndex = 0, onContextLost, onCo
     canvas.removeEventListener('webglcontextlost', lost);
     canvas.removeEventListener('webglcontextrestored', restored);
     renderer.setAnimationLoop(null);
+    disposeTree(scene); // safety net: whatever a layer forgot to give back is freed here, after the layers disposed their own
     envTex?.dispose();
     renderer.dispose();
     // Only release the context when the canvas element is being thrown away too. A canvas that is

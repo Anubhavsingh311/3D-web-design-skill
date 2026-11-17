@@ -6,7 +6,7 @@ A clean `vite build` proves nothing about a scroll experience. Verify at three l
 ```bash
 cd <project> && npm test
 ```
-35 tests cover the pure logic: theme contrast, schedule math, edge ordering, perf tiers and the frame monitor, ingest (bounds, markers, quad and coded slots, units, both explode modes, audit), contact shadow placement, looks (dissolve invariants, multi-material, hull selection, line contrast, draw-on stagger, threshold raising), layout and registration math, config fallback. Several tests are regression witnesses: they assert that the ORIGINAL behaviour (lerped colours, a 1.14 dissolve constant, a linear chapter timeline) fails, so the bug cannot return unnoticed. `node test/unit.mjs <substring>` runs a subset.
+36 tests cover the pure logic: theme contrast, schedule math, edge ordering, perf tiers and the frame monitor, ingest (bounds, markers, quad and coded slots, units, both explode modes, audit), contact shadow placement, looks (dissolve invariants, multi-material, hull selection, line contrast, draw-on stagger, threshold raising), layout and registration math, config fallback, `disposeTree` (geometry, material arrays, textures, shader uniform textures). Several tests are regression witnesses: they assert that the ORIGINAL behaviour (lerped colours, a 1.14 dissolve constant, a linear chapter timeline) fails, so the bug cannot return unnoticed. `node test/unit.mjs <substring>` runs a subset.
 
 ## Level 2: pre-flight on the model (seconds)
 ```bash
@@ -46,7 +46,7 @@ It loads the page with `?verify`: strict 1:1 scroll sync, no idle motion, no int
 ### Behaviour groups (desktop)
 - **reduced-motion**: static mode, the pose cuts to the chapter in view.
 - **no-webgl** (Chromium started with `--disable-3d-apis`): `html.no-webgl`, readable headings, no uncaught errors, posters visible if `data-poster` is set.
-- **lifecycle**: mount, unmount, mount, unmount, mount: one canvas, the panel re-bound (or untouched when there is no slot), still renders, no errors. Then `WEBGL_lose_context`: flagged, restored, renders again.
+- **lifecycle**: mount, unmount, mount, unmount, mount: one canvas, the panel re-bound (or untouched when there is no slot), still renders, no errors. `destroy()` leaves zero geometries and textures on the old renderer. Then `WEBGL_lose_context`: flagged, restored, renders again. Then a faked hidden document: the frame counter freezes, and advances again when shown.
 - **resize** while scrolled: the timeline rebuilds for the new size and still maps pixels to time exactly.
 - **single-file** (`--single`): builds `dist-single`, no external requests, under 16 MB, boots from `file://`, renders, no errors.
 - **posters** (`--posters`): transparent WebP per chapter.
