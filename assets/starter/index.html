@@ -3,10 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f3f0e8">
   <title>Scroll 3D object stage</title>
   <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
+  <a class="skip" href="#contact">Skip to contact</a>
+
   <!-- Layer order, back to front: #bg, #css-layer (DOM panels in 3D), #stage (WebGL), main (text). -->
   <div id="bg"></div>
   <div id="css-layer"></div>
@@ -15,7 +18,7 @@
   <!-- Panels live here until CSS3DRenderer takes them. Real DOM: selectable, translatable, indexable. -->
   <div id="panels" hidden>
     <div class="panel" id="panel-screen">
-      <svg viewBox="0 0 480 300" width="480" height="300" role="img" aria-label="Signal diagram">
+      <svg viewBox="0 0 480 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Signal diagram">
         <path d="M24 40 H456" />
         <path d="M24 90 C120 90 120 150 216 150 S312 90 456 90" />
         <path d="M24 210 H160 L200 170 L260 250 L300 210 H456" />
@@ -24,6 +27,7 @@
     </div>
   </div>
 
+  <!-- One <section class="chapter" data-chapter="id"> per row in CHAPTERS (src/config.js). Same ids, any order. -->
   <main>
     <section class="chapter" data-chapter="intro">
       <div class="pin">
@@ -75,11 +79,17 @@
           <p class="eyebrow">05 / Detail</p>
           <h2>The screen is a real web page.</h2>
           <p>The panel is HTML and SVG pinned to the object with the same camera, and it occludes correctly.</p>
+          <a class="cta" href="#contact">Start building</a>
         </div>
         <div class="anchor"></div>
       </div>
     </section>
   </main>
+
+  <footer class="end" id="contact">
+    <h2>Anything after the experience scrolls away with it.</h2>
+    <p>The stage layers leave with the last pin, so the object never floats over this footer.</p>
+  </footer>
 
   <script type="module" src="/src/main.js"></script>
 </body>

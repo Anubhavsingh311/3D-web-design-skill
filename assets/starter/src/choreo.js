@@ -1,72 +1,70 @@
 import { createTimeline, createDrawable, onScroll, stagger } from 'animejs';
 import 'animejs/adapters/three'; // side-effect import: lets animate()/timeline target Three.js objects
-import { CONFIG, CHAPTERS } from './config.js';
+import { POSE_KEYS } from './config.js';
 
-// Merge the author's pose table with the measured layout (x, y, scale per chapter).
-export function buildPoses(layout) {
-  return CHAPTERS.map((c, i) => ({ ...c, ...layout[i] }));
+export function applyPose(pivot, state, pose) {
+  pivot.position.set(pose.x, pose.y, 0);
+  pivot.rotation.set((pose.rotateX * Math.PI) / 180, (pose.rotateY * Math.PI) / 180, 0);
+  pivot.scale.setScalar(pose.scale);
+  POSE_KEYS.forEach((k) => { state[k] = pose[k]; });
 }
 
-const STATE_KEYS = ['draw', 'reveal', 'explode', 'lines', 'panel', 'dark'];
-
-// One master timeline. Chapter i-1 to i is a transition that starts after a hold, so the object
-// rests while the reader reads, then moves while the reader scrolls to the next block.
+// One master timeline. Its time axis is PIXELS OF SCROLL (see schedule.js), so every move starts and
+// ends exactly where the page layout says it should, whatever the chapter heights are.
 // Every tween has explicit [from, to] values, so rebuilding after a resize never reads stale state.
-export function buildScrubbed({ pivot, state, poses, panelPaths }) {
-  const D = CONFIG.chapterMs;
-  const hold = D * CONFIG.holdFraction;
-  const T = D - hold;
-
+export function buildScrubbed({ pivot, state, poses, schedule, panelPaths, smoothing, debug, viewH }) {
   applyPose(pivot, state, poses[0]);
 
+  // Thresholds are absolute pixels, not 'bottom bottom'. 'bottom' of the container means window.innerHeight,
+  // which changes on phones whenever the URL bar slides. viewH is the stuck .pin height and does not.
   const observer = onScroll({
     target: 'main',
-    enter: 'top top',        // progress 0: top of main meets top of the viewport
-    leave: 'bottom bottom',  // progress 1: bottom of main meets bottom of the viewport
-    sync: CONFIG.scrollSmoothing,
-    debug: new URLSearchParams(location.search).has('debug'),
+    enter: { container: 0, target: 'top' },
+    leave: { container: viewH, target: 'bottom' },
+    sync: smoothing,
+    debug,
   });
 
-  const tl = createTimeline({
-    defaults: { ease: 'inOutCubic', duration: T },
-    autoplay: observer,
-  });
+  const tl = createTimeline({ defaults: { ease: 'inOutCubic' }, autoplay: observer });
 
   for (let i = 1; i < poses.length; i++) {
     const a = poses[i - 1];
     const b = poses[i];
-    const at = (i - 1) * D + hold;
+    const w = schedule.chapters[i];
+    const duration = Math.max(1, w.moveEnd - w.moveStart);
 
     // The object itself, through the Three.js adapter (degrees, flat property names).
     tl.add(pivot, {
-      x: [a.x, b.x],
-      y: [a.y, b.y],
-      scale: [a.scale, b.scale],
-      rotateX: [a.rotateX, b.rotateX],
-      rotateY: [a.rotateY, b.rotateY],
-    }, at);
+      x: [a.x, b.x], y: [a.y, b.y], scale: [a.scale, b.scale],
+      rotateX: [a.rotateX, b.rotateX], rotateY: [a.rotateY, b.rotateY],
+      duration,
+    }, w.moveStart);
 
     // Plain numbers that the render loop feeds into materials, explode offsets and CSS.
-    const params = {};
-    STATE_KEYS.forEach((k) => { params[k] = [a[k], b[k]]; });
-    tl.add(state, params, at);
+    const params = { duration };
+    POSE_KEYS.forEach((k) => { params[k] = [a[k], b[k]]; });
+    tl.add(state, params, w.moveStart);
 
-    // SVG line drawing inside the DOM panel, in the SAME timeline as the 3D object.
+    // SVG line drawing inside the DOM panel, in the SAME timeline as the 3D object. The window ends before
+    // the chapter's rest ends: a stagger that outlives the timeline would silently rescale everything.
     if (panelPaths.length && a.panel === 0 && b.panel === 1) {
+      const from = w.moveStart + duration * 0.3;
+      const until = Math.min(schedule.range, w.moveEnd + 0.5 * viewH);
+      const total = Math.max(1, until - from);
+      const step = panelPaths.length > 1 ? (total * 0.3) / (panelPaths.length - 1) : 0;
       tl.add(createDrawable(panelPaths), {
-        draw: ['0 0', '0 1'],
-        delay: stagger(70),
-        duration: T * 0.7,
-        ease: 'inOutQuad',
-      }, at + T * 0.3);
+        draw: ['0 0', '0 1'], delay: stagger(step), duration: total * 0.7, ease: 'inOutQuad',
+      }, from);
     }
   }
 
+  // Pin the duration to the scroll distance. Progress maps onto the timeline's total duration, so any
+  // difference here would stretch every tween.
+  tl.call(() => {}, schedule.range);
+
   return {
-    destroy() {
-      observer.revert();
-      tl.revert();
-    },
+    mode: 'scrubbed', tl, observer,
+    destroy() { observer.revert(); tl.revert(); },
   };
 }
 
@@ -80,12 +78,5 @@ export function buildStatic({ pivot, state, poses }) {
     });
   }, { threshold: 0.6 });
   chapters.forEach((c) => io.observe(c));
-  return { destroy: () => io.disconnect() };
-}
-
-export function applyPose(pivot, state, pose) {
-  pivot.position.set(pose.x, pose.y, 0);
-  pivot.rotation.set((pose.rotateX * Math.PI) / 180, (pose.rotateY * Math.PI) / 180, 0);
-  pivot.scale.setScalar(pose.scale);
-  STATE_KEYS.forEach((k) => { state[k] = pose[k]; });
+  return { mode: 'static', destroy: () => io.disconnect() };
 }
