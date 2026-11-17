@@ -5,7 +5,7 @@ A Vite project: one 3D object lives in the page layout, sketches itself, explode
 ```bash
 npm install
 npm run dev            # http://localhost:5173, add ?debug for a HUD, anchor outlines and slot axes
-npm test               # 35 Node unit tests, no browser
+npm test               # 36 Node unit tests, no browser
 npm run build          # dist/
 npm run build:single   # ONE self-contained dist-single/index.html (meshopt or plain GLB only)
 ```
@@ -38,7 +38,7 @@ Everything else is infrastructure. Read `references/` in the skill before changi
 | `theme.js` | one `dark` value for page and object, contrast-safe. Pure |
 | `register.js` | DOM panel on a surface (CSS3DRenderer plus hole-punch plane) |
 | `contact.js` | the one cue that ties object to page: `grain`, `shadow`, `none` |
-| `stage.js` | renderer, lights, environment, tiers, context loss |
+| `stage.js` | renderer, lights, environment, tiers, context loss, `disposeTree` |
 | `perf.js` | tier picking and the frame monitor. Pure |
 | `debug.js` | `?debug` HUD and `?verify` hooks (`window.__stage`) |
 | `model.js` | finds `src/model/object.glb` at build time (Vite only) |

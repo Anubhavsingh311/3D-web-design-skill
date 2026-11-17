@@ -303,6 +303,19 @@ async function main() {
     check('remounted stage renders', (await page.evaluate(() => window.__stage.coverage())).fraction > 0.002);
     check('no console errors across remounts', page.errors.length === 0, page.errors.slice(0, 2).join(' | '));
 
+    // GPU memory: destroy() must give back every geometry and texture it created. The old renderer's counters are
+    // read straight after unmount, while its dispose listeners are still attached.
+    const leak = await page.evaluate(async () => {
+      const r = window.__stage.renderer;
+      window.__mount.unmount();
+      const m = { geometries: r.info.memory.geometries, textures: r.info.memory.textures };
+      await window.__mount.mount();
+      return m;
+    });
+    await page.waitForFunction(() => window.__stage?.ready, { timeout: 60000 });
+    check('destroy() frees every geometry and texture it created', leak.geometries === 0 && leak.textures === 0, JSON.stringify(leak));
+    await scrollTo(page, 3000);
+
     // context loss and restore
     await page.evaluate(() => { const gl = window.__stage.renderer.getContext(); window.__lose = gl.getExtension('WEBGL_lose_context'); window.__lose.loseContext(); });
     await sleep(500);
@@ -312,6 +325,21 @@ async function main() {
     const back = await page.evaluate(() => ({ cov: window.__stage.coverage().fraction, flag: document.documentElement.classList.contains('context-lost') }));
     check('context loss is flagged, then rendering resumes', flagged && !back.flag && back.cov > 0.002, JSON.stringify({ flagged, ...back }));
     await page.screenshot({ path: path.join(out, 'after-context-loss.png') });
+
+    // hidden document: the render loop stops, and it resumes when the document is shown again
+    const setHidden = (hidden) => page.evaluate((h) => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => h });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }, hidden);
+    await setHidden(true);
+    await sleep(300);
+    const v0 = await page.evaluate(() => window.__stage.frames);
+    await sleep(500);
+    const v1 = await page.evaluate(() => window.__stage.frames);
+    await setHidden(false);
+    await sleep(500);
+    const v2 = await page.evaluate(() => window.__stage.frames);
+    check('render loop pauses while the document is hidden and resumes when shown', v1 === v0 && v2 > v1, JSON.stringify({ hiddenStart: v0, hiddenEnd: v1, resumed: v2 }));
 
     // resize while scrolled: the choreography is rebuilt at the same place
     currentGroup = 'resize';

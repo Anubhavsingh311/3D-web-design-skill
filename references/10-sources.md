@@ -25,7 +25,7 @@ Measured in this environment (headless Chromium 153 with SwiftShader WebGL2, Nod
 - Anime.js 4.5.0 source: `engine.useDefaultMainLoop` and `engine.wake()`; `timeline.call` adds a zero-duration child; `onScroll` threshold parsing (strings, `{ container, target }`, numbers as pixels); numeric `sync` becomes a per-frame lerp factor `lerp(0.01, 0.2, sync)`.
 - three 0.187 source: `DRACOLoader` and `KTX2Loader` default decoder URLs via `new URL(..., import.meta.url)`.
 - gltf-transform 4.5.1 CLI: which `optimize` flags keep markers and parts (tests above), and the GLB results for meshopt and Draco output.
-- Rebuilt starter: 35 unit tests, about 145 browser checks across three viewports, four GLB fixtures plus meshopt and Draco variants, a single-file build from `file://`, a React 18 StrictMode harness with unmount and remount.
+- Rebuilt starter: 36 unit tests, about 145 browser checks across three viewports, four GLB fixtures plus meshopt and Draco variants, a single-file build from `file://`, a React 18 StrictMode harness with unmount and remount.
 
 Not verified
 - The site's real internal implementation of DOM-in-3D (reported only).

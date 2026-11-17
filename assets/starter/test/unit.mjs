@@ -12,6 +12,7 @@ import { viewToWorld } from '../src/layout.js';
 import { slotSize, projectToScreen } from '../src/register.js';
 import { CHAPTERS, poseFor } from '../src/config.js';
 import { shadowPlacement } from '../src/contact.js';
+import { disposeTree } from '../src/stage.js';
 
 let passed = 0;
 const failures = [];
@@ -380,6 +381,23 @@ test('config: a chapter without a row inherits the previous pose and warns', () 
   console.warn = warn;
   ok(warned === 1 && p.rotateY === CHAPTERS[2].rotateY && p.id === 'unknown');
   ok(poseFor('solid', 3, null).reveal === 1, 'known ids resolve to their row');
+});
+
+// ---------------------------------------------------------------- lifecycle
+test('stage: disposeTree frees geometry, material arrays, material textures and shader uniform textures', () => {
+  const seen = new Set();
+  const watch = (name, o) => { o.addEventListener('dispose', () => seen.add(name)); return o; };
+  const geo = watch('geo', new THREE.BoxGeometry());
+  const map = watch('map', new THREE.Texture());
+  const noise = watch('noise', new THREE.Texture());
+  const a = watch('matA', new THREE.MeshStandardMaterial({ map }));
+  const b = watch('matB', new THREE.ShaderMaterial({ uniforms: { uNoise: { value: noise } } }));
+  const root = new THREE.Group();
+  root.add(new THREE.Mesh(geo, [a, b]));
+  root.add(new THREE.Group()); // nodes without geometry or material must not throw
+  disposeTree(root);
+  for (const k of ['geo', 'map', 'noise', 'matA', 'matB']) ok(seen.has(k), `${k} was not disposed`);
+  disposeTree(root); // twice is harmless
 });
 
 // ---------------------------------------------------------------- run

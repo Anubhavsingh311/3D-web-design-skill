@@ -42,3 +42,6 @@ Each item has the tell that reveals it in review. Items 24 and up were found by 
 37. **World-space dissolve noise.** Tell: the noise swims while the object rotates. Fix: object-space front and noise.
 38. **Scattered edge order.** Tell: draw-on looks like specks appearing. Fix: `orderSegments` chains and visits nearest first.
 39. **Hull outlines on hard parts.** Tell: torn corners. Fix: `look.outline: 'auto'` gives hulls only to smooth parts.
+40. **Disposing only `material`.** Tell: `scene.traverse(o => { o.geometry?.dispose(); o.material?.dispose(); })` and the texture count still climbs on every remount. Fix: `disposeTree`, which also frees material arrays, slot textures and shader uniform textures.
+41. **Freeing only what was mounted.** Tell: a fast route change while the GLB downloads leaves the model on the GPU. Fix: free the model in the `disposed` branch after the await.
+42. **A render loop that ignores the page being hidden.** Tell: GPU and battery use with the tab in the background, or a jump on return. Fix: stop the loop on `visibilitychange`, reset the frame clock on resume.
