@@ -1,51 +1,62 @@
-# 07. Performance, accessibility and fallbacks
+# 07. Performance, resilience and fallbacks
+
+Everything marked "in the starter" is implemented and exercised by `verify.mjs`. Frame times on real GPUs and phones are NOT measured here (headless software GL), so budgets below are design limits, not measurements.
 
 ## Budgets
-| Item | Desktop | Mobile |
+| | Desktop | Phone |
 |---|---|---|
-| Model download | 5 MB hard cap, 3 MB target | 3 MB |
 | Triangles | 300k | 100k |
-| Draw calls (sketch look uses 3 per mesh) | 300 | 120 |
-| Pixel ratio | 2 | 1.5 |
-| JS (gzip) | 200 KB | 200 KB |
-| Frame time | 16 ms | 20 ms |
+| Draw calls (the looks add up to 3 per mesh) | 300 | 120 |
+| Model file | 5 MB hard cap | 3 MB |
+| Texture memory | under 160 MB | under 160 MB, prefer 1024 px or KTX2 |
+| JS (starter, gzip) | about 195 KB | same |
 
-The starter's bundle is about 170 KB gzip including Three.js. Keep it that way by importing addons by path, loading loaders lazily, and avoiding postprocessing unless the design needs it.
+`auditObject` checks these with the desktop or phone budget chosen by viewport width, and prints codes (`triangles`, `draw-calls`, `vram`). Measured starter bundle: 717 KB raw, 195 KB gzip, with the Draco, KTX2 and glTF loaders as lazy chunks.
 
-## Cheap wins
-- Cap DPR (`stage.resize()` does).
-- Pause rendering when the canvas is out of view (`IntersectionObserver` on `main`) and when the tab is hidden (`setAnimationLoop` already pauses with rAF).
-- Render on demand for static chapters: if scroll progress, pointer and idle are all settled, skip the frame. Reduces battery use a lot on long reading sections.
-- Merge small meshes offline. The sketch look triples draw calls per mesh.
-- Reuse geometry, never clone it per instance. Use `InstancedMesh` for repeated parts. Anime.js's adapter can animate instances with `getInstances()`.
-- Avoid `MeshPhysicalMaterial` transmission on mobile. It renders the scene twice.
-- Shadows: one light, 1024 map, `PCFSoftShadowMap`, and only if a contact shadow is in the design.
+## Quality tiers (in the starter, `src/perf.js`)
+| Tier | DPR cap | Environment | Parallax and idle |
+|---|---|---|---|
+| high | 2 | yes | yes |
+| mid | 1.5 | yes | no |
+| low | 1 | no (hemisphere light instead) | no |
 
-## Tiering
-Detect once at init:
-```js
-const lowEnd = navigator.hardwareConcurrency <= 4 || /Android|iPhone/.test(navigator.userAgent);
-```
-Low tier: DPR 1, no environment map (use two lights), edge lines at `linewidth: 1.2`, no pointer parallax, `scrollSmoothing: true` (cheaper than eased smoothing). A frame-time monitor that drops a tier after 30 slow frames is better than user-agent sniffing, add it when the object is heavy.
+- Starting tier from cheap signals: 2 cores or 2 GB is low, 4 cores or 4 GB or a coarse pointer is mid, else high. Phones are not automatically low: current ones are fast. `?tier=low|mid|high` forces one.
+- A frame monitor watches frame deltas. When 60 percent of a 45-frame window exceeds 26 ms it drops one tier, then waits 120 frames so it cannot flap. The first 60 frames (shader compiles) and stalls over 250 ms (tab switches, long tasks) are ignored. Unit tested for all three behaviours.
+- `antialias` is fixed when the context is created, so it follows the STARTING tier only.
+- `?verify` disables the monitor so captures are deterministic. Software GL would otherwise drop to low immediately.
 
-## prefers-reduced-motion
-`buildStatic()` cuts between poses when a chapter is 60 percent visible. No idle, no pointer parallax, no scrub. Chapter height falls to 100vh in CSS. The DOM panel simply appears.
+## Rendering costs
+- Pixel ratio is the biggest lever. Cap at 2, and at 1.5 below 800 px wide.
+- The fill, solid and lines layers triple draw calls. Merge small meshes first.
+- The dissolve shader is cheap. It no longer recomputes a `Box3` every frame: the range is computed once, in object space.
+- `renderer.info.render.calls` and `.triangles` are in the `?debug` HUD.
 
-## No WebGL, context loss, old devices
-- `createStage()` returns null if WebGL fails. Add `.no-webgl`, which hides canvas and CSS layer and shows a styled `.anchor` box. Put a static `<img>` of the object in each `.anchor` as the real fallback.
-- Handle `webglcontextlost` (call `event.preventDefault()`) and `webglcontextrestored` (rebuild materials). Mobile browsers drop contexts in the background.
+## Scroll and offscreen
+- The stage layers scroll away with the last pin (`stageOffset`), and when they are fully out of view the loop skips drawing and keeps only the scroll state. Verified: the frame counter stops.
+- Render on demand (skip frames while nothing changes) is NOT in the starter, because idle drift keeps the scene alive. If you disable idle (`idle: false`) you can skip `render()` when scroll progress and pointer are settled, but measure first.
+- `will-change: transform` on the canvas is not needed: the stage only moves outside the experience.
 
-## Accessibility
-- All meaning is in DOM text. The canvas is `aria-hidden="true"`.
-- The DOM panel keeps real text and `role="img"` plus `aria-label` for SVG diagrams.
-- Contrast: text over the object needs 4.5:1 at every scroll position. Check both `dark` states and the mid-transition.
-- Focus: nothing in the stage is focusable. Keep the page fully keyboard usable. Skip link at top.
-- Do not trap or hijack scroll. Keep native anchors working. When jumping to `#section`, the timeline follows because it is scroll-driven.
-- Motion: respect reduced motion (above). Offer no auto-playing loops longer than 5 seconds.
-- Seizure safety: no flashing above 3 per second. The dissolve edge is a sweep, not a strobe.
+## Resize, fonts, URL bar
+- One stage box (`readStageBox`) sizes canvas, CSS3D layer and camera from the stuck `.pin` (100svh). A resize rebuilds only if width or pin height really changed, so a phone's URL bar sliding costs nothing. NOT verified on a real phone.
+- Rebuild also runs on `document.fonts.ready` and on `prefers-reduced-motion` change. A rebuild after resize restores the same scroll position (verified: timeline time equals scrolled pixels afterwards).
 
-## SEO and sharing
-The page is server-renderable because text is DOM. Give the OG image a static render of the solid object, not the sketch.
+## Context loss (in the starter, verified)
+Mobile browsers drop WebGL contexts in the background. `stage.js` calls `preventDefault()` on `webglcontextlost` so the browser may restore, adds `html.context-lost` for styling, and on restore rebuilds the PMREM environment (a render target, which does not survive). Three re-creates its own GPU state. Verified with `WEBGL_lose_context`: the object renders again after restore. The canvas is reused across remounts, so the context is NOT force-released on `destroy()` unless you pass `releaseContext: true` for a canvas you are discarding.
 
-## Memory and teardown
-`engine.useDefaultMainLoop = false` means Anime.js stops if you stop calling `engine.update()`. On route change in an SPA: `choreo.destroy()`, `looks.dispose()`, `binder.dispose()`, `stage.dispose()`, remove listeners.
+## Fallback matrix
+| Condition | Behaviour | How it is tested |
+|---|---|---|
+| `prefers-reduced-motion` | static mode, poses cut per chapter, no idle, no intro, chapters 100vh | `verify.mjs` reduced-motion group |
+| No WebGL | `html.no-webgl`: canvas hidden, page fully readable, posters in the anchors if `data-poster` is set | launched with `--disable-3d-apis` |
+| Model fails to load | `html.stage-error`, console error, page readable | by construction (boot is try/caught) |
+| Context lost | `html.context-lost`, recovers on restore | `WEBGL_lose_context` |
+| JS disabled | all text is real DOM, chapters and pins are plain CSS, canvas stays invisible | by construction |
+| Slow GPU | frame monitor steps the tier down | unit tests |
+
+## Single-file build
+`npm run build:single` makes ONE `dist-single/index.html` with JS, CSS and the GLB inlined (`vite-plugin-singlefile`). Verified: an 812 KB file with a meshopt GLB boots from `file://`, renders, makes no external requests and logs no errors (`verify.mjs --single`). Draco and KTX2 are left out of this mode. Use it for hosts that take one HTML file, for emailing a preview, or for a hosted-page tool, see `11-integration-and-delivery.md`.
+
+## Memory
+- Dispose on teardown (the starter does): geometries, textures, materials, render targets, the environment, the CSS3D scene.
+- Do not allocate vectors or colours in the render loop. The starter reuses temporaries.
+- A model's textures are the VRAM cost. 2048 by 2048 is about 21 MB with mips. Five of them is a phone problem.

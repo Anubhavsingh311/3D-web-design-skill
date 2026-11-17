@@ -1,47 +1,57 @@
-# 06. Making the object belong to the page
+# 06. Blending the object into the site
 
-"Seamless" is a list of small agreements between the 3D and the DOM. Check each one.
+The test: cover the page text and show someone one frame. Could the object belong to any other site? If yes, it is floating, not blended. Every layer below ties the object to the site's own system.
 
-## 1. One source of colour
-`readTokens()` reads `--ink`, `--paper`, `--accent` from the document. Never hard-code hex in JS or GLSL. When the site rebrands, nothing in the 3D changes except tokens. If the site has a dark mode, call `looks.setTokens(readTokens())` on `matchMedia('(prefers-color-scheme: dark)')` change.
+## 1. Tokens, read from the site
+`readTokens()` reads `--ink`, `--paper`, `--accent` (and optionally `--paper-dark`, `--ink-dark`) from `:root`. The 3D look, the page colours and the DOM panel come from the same variables, so a rebrand is one CSS edit. Never write a hex value in JS or GLSL. A `prefers-color-scheme` change re-reads the tokens and rebuilds the theme and contact cue.
 
-## 2. One source of theme
-The timeline animates `state.dark`. The render loop writes `--bg` and `--fg` on `:root` from it, and the fill, lines and text all follow. The page and object cannot disagree mid-scroll. Avoid per-section background colours on `.chapter` elements: they would sit above the canvas in the stacking order and hide the object.
+## 2. One theme value for page and object
+`state.dark` (0 to 1) drives everything:
+- `--bg` on `:root` (and `<meta name="theme-color">`) lerps from paper to paperDark. The fill layer uses the same colour, so the sketch and the page are one surface.
+- `--fg` is NOT lerped. `createTheme().at(dark)` returns the foreground as whichever of `ink` or `inkDark` has more contrast with the current background. The text and the sketch lines both use it.
 
-## 3. One grid
-The object fills the `.anchor` box. On mobile the anchor moves under or over the copy via CSS, and the object follows because layout is remeasured. Never position the object with hard-coded world coordinates.
+Why the jump: a lerp of both colours is identical at the midpoint, and any continuous foreground path from dark to light has to cross the background's path somewhere (intermediate value theorem). Measured on the original starter: 1.09:1 at `dark = 0.525`, with every heading and every sketch line gone (screenshot in the evidence for this skill). With the jump the worst case for the default palette is about 4:1 at the crossover and above 12:1 at both ends. `theme.worstContrast()` returns the number for your palette, and the verifier samples 37 scroll positions and fails below 3.5:1.
 
-## 4. One camera
-Use a low fov (30 to 40) and a camera distance that matches a product shot. Wide fovs make DOM panels distort. CSS3DRenderer shares the WebGL camera, so DOM panels share the perspective too.
+A dark chapter that is not a plain inversion (a navy, a forest green): set `--paper-dark` and `--ink-dark` in `:root`. The lines and text pick the better of `--ink` and `--ink-dark` per frame.
 
-## 5. Light that matches the page
-- `NeutralToneMapping` and `toneMappingExposure: 1`. ACES shifts hue and desaturates brand colours.
-- `RoomEnvironment` through `PMREMGenerator` as a free studio. `scene.environmentIntensity` around 0.45.
-- Key light 1.3, rim 0.6. If the page is warm paper, tint the key light slightly warm (`0xfff4e6`). If the page is dark, drop the key to 1.0 and raise the rim.
-- No pure white parts. Cap albedo at about 0.85 or the object clips against paper backgrounds.
-- `fillMat.toneMapped = false` so sketch paper equals the CSS paper colour exactly.
+## 3. Grid: the anchor box
+The object fills the chapter's `.anchor`, which is a normal grid cell. On every breakpoint, the object's centre and size come from that box (`measureChapters`). Do not position the canvas content with magic numbers. Check with `?debug`: dashed boxes are the anchors, the crosshair is the object's projected centre, and `verify.mjs` asserts they agree within 2 px.
 
-## 6. Contact cue (pick one)
-- **Shadow plane**: `ShadowMaterial({ opacity: 0.15 })` under the object, one `DirectionalLight` with `castShadow`, 1024 map. Only on a ground that exists in the layout.
-- **Baseline rule**: a 1 px DOM line at the object's resting baseline that draws on with `createDrawable`.
-- **Shared grain**: a fixed `::after` noise overlay (`mix-blend-mode: multiply`, opacity 0.05) above both canvas and page, so everything shares texture.
+## 4. Type
+The DOM panel uses the site's font stack. If a web font loads late, layout shifts and the anchors move, so the starter rebuilds on `document.fonts.ready`. Preload the hero font. Panel text at the largest on-screen size, scaled down.
 
-## 7. Depth sandwich
-Default: text above the object (`main` z3 above `#stage` z2). To let the object pass in front of a heading: swap those z-indexes for that chapter, or render a second canvas above the text with only the foreground object. Do not use both on one page without a reason.
+## 5. Light
+- Tint the key light with the page paper (`stage.setTint`), so a warm page gets warm light. No pure white and no pure black in lighting, albedo or the `LineMaterial` colour.
+- Keep albedo under about 0.85 and use `NeutralToneMapping`. ACES shifts brand colours, which is the fastest way to make an object look pasted in.
+- Environment intensity around 0.45. The environment is a procedural room (no HDR download). The low tier replaces it with a hemisphere light.
 
-## 8. Type and diagram language
-Panel content uses the site's fonts and tokens. SVG strokes match the line weight of the 3D lines (about 2 to 2.5 px). Labels use the same monospace as the page's eyebrows.
+## 6. One contact cue (`CONFIG.contact`)
+Pick exactly one, because two cues compete.
+- `'grain'` (default): a fixed noise overlay (`body::after`, multiply, 7 percent) above canvas and page, so both share one texture. CSS only, always valid.
+- `'shadow'`: a soft ellipse under the object that follows its position and scale and fades in dark chapters and while exploded. Only for layouts where the object plausibly rests on something.
+- `'none'`: when the page supplies its own cue (a baseline rule, a plinth, a coloured band the object stands on).
+Posters and screenshots hide the grain so they stay transparent.
 
-## 9. Motion language
-One ease family for the whole page (`inOutCubic` plus `outExpo`). One stagger rhythm (60 to 90 ms). Idle motion is subtler than scroll motion.
+## 7. Motion language
+Match the site's easing. If the site uses `cubic-bezier(.2,.8,.2,1)` for UI, use an equivalent in the timeline (`outExpo` is close). Durations in the pose table are scroll distances, so "speed" is the reader's, not yours. One property family per chapter changes.
 
-## 10. Loading
-The page must be readable before the model arrives. Show the layout with empty `.anchor` boxes, then fade the canvas in (`opacity: 0 to 1`, 400 ms) when the first frame renders. A 2D poster image of the object, absolutely positioned in the first anchor, is the best placeholder.
+## 8. First paint and fallbacks
+- **Poster.** `<div class="anchor" data-poster="/posters/intro.png">` shows an image in the anchor box until the first frame renders, and permanently without WebGL. The canvas fades in over 0.4 s (`html.stage-ready`).
+- **Generate posters instead of shooting them:** `node scripts/verify.mjs --project . --posters` renders every chapter's pose with a transparent background and writes right-sized WebP (`--poster-px 640` default, 6 to 19 KB each measured). Copy them to `public/posters/`, add `data-poster` to each anchor. Verified: with posters wired in, the no-WebGL run shows all five.
+- The same renders make the Open Graph image and the loading placeholder.
 
-## Checklist (all must be yes)
-- Does the object use the site's colours via tokens?
-- Does it sit in the grid column the copy leaves for it, on mobile as well?
-- Are page background and text changing together with the object?
-- Is any part pure white or pure black?
-- Is there exactly one contact cue?
-- Does the first screen look finished before scrolling?
+## 9. Accessibility
+- All text is real DOM text. The canvas is `aria-hidden`. The panel toggles `aria-hidden` with its visibility.
+- Provide a skip link (the starter has one) and visible focus (`a:focus-visible`).
+- `prefers-reduced-motion`: no scrubbing, no idle motion, no intro draw, chapters 100vh, poses cut when a chapter is 60 percent visible.
+- Contrast: see section 2. Text over the object is the one place it can fail, so keep copy in its own column.
+- Do not trap scroll or focus inside panels.
+
+## Minimum bar (the checklist from SKILL.md, with how each is checked)
+| Item | Check |
+|---|---|
+| Colours from CSS custom properties | grep for `#` and `0x` in `src/` outside `config.js` demo materials |
+| Background and text follow `dark`, contrast above 4:1 | `theme.worstContrast()`, verifier group "text contrast stays above 3.5:1" |
+| Object fills its anchor on every breakpoint | verifier "object centre sits on its anchor" per chapter, per viewport |
+| No pure white or black, neutral tone mapping | review `stage.js` and materials |
+| One contact cue | `CONFIG.contact` is not two things |

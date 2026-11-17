@@ -1,6 +1,6 @@
 # 09. Anti-patterns
 
-Each item has the tell that reveals it in review.
+Each item has the tell that reveals it in review. Items 24 and up were found by measuring the original starter and are covered by regression tests.
 
 1. **Scroll hijacking.** Tell: `wheel` listeners with `preventDefault`, `overflow: hidden` on body. Fix: native scroll, `onScroll` reads it.
 2. **Two writers to one property.** Tell: idle wobble code touching `pivot.rotation`. Fix: idle on `floater`, timeline on `pivot`.
@@ -15,7 +15,7 @@ Each item has the tell that reveals it in review.
 11. **Fill colour not equal to background.** Tell: a visible silhouette where there should be only lines. Fix: `toneMapped: false`, colour from `--paper`.
 12. **Thin 1 px lines.** Tell: `LineBasicMaterial` for the sketch. Fix: `LineMaterial` and set `resolution` on resize.
 13. **`DoubleSide` to hide bad normals.** Tell: it is on everywhere. Fix: flip normals at the source.
-14. **Uncompressed models.** Tell: GLB over 5 MB. Fix: `gltf-transform optimize`.
+14. **Uncompressed models.** Tell: GLB over 5 MB. Fix: `gltf-transform optimize` WITH the structure-preserving flags (item 28).
 15. **Model is one fused mesh and explode is promised.** Tell: units.length is 1. Fix: split offline or cut the chapter.
 16. **Hole plane without an offset.** Tell: flickering panel edge. Fix: slot 0.01 in front of the surface.
 17. **Panel text scaled up from small.** Tell: blurry text. Fix: author large, scale down.
@@ -25,3 +25,20 @@ Each item has the tell that reveals it in review.
 21. **Copying the reference's assets.** Tell: their GLBs, SVGs or copy in the repo. Fix: original content only.
 22. **Reading layout in the render loop.** Tell: `getBoundingClientRect` inside `setAnimationLoop`. Fix: measure in `rebuild()`.
 23. **Leaking GPU memory in SPAs.** Tell: no `dispose()` on route change.
+
+24. **Lerping text against background.** Tell: both colours animated from one value. Measured: 1.09:1 contrast at the midpoint, headings and lines gone. Fix: `createTheme().at(dark)`, foreground jumps to the better of two inks.
+25. **An abstract-millisecond timeline mapped onto scroll.** Tell: `chapterMs`, `holdFraction`. Measured: the object arrived 0.85 viewport heights late in the last chapter. Fix: a pixel-time schedule from measured geometry.
+26. **A tween that outlives the nominal end.** Tell: a stagger or a delay near the end of the timeline. Anime.js maps progress onto the TOTAL duration, so everything silently rescales (4210 against 4000). Fix: end it inside the range, pin the duration with `tl.call(fn, range)`, assert `tl.duration === range`.
+27. **Dissolve end state not clean.** Tell: accent specks on the finished object. Fix: `K >= 1 + noise + band` (1.14 against a required 1.17).
+28. **`gltf-transform optimize` with defaults.** Tell: explode units dropped, `slot_*` gone. Measured: 7 units became 3 and every Empty marker vanished. Fix: `--join false --simplify false --instance false`, plus `--flatten false --prune false` for Empty markers, then `inspect-model.mjs --against`.
+29. **Orienting an Empty by guesswork.** Tell: the panel faces up, down or into the body. Fix: use a quad mesh, or check the blue axis with `?debug`.
+30. **Sizing from `window.innerHeight`.** Tell: layers disagree after a phone's URL bar slides. Fix: one stage box from the stuck `.pin` (100svh), absolute-pixel scroll thresholds.
+31. **A CDN decoder path.** Tell: `setDecoderPath('https://www.gstatic.com/...')`. three 0.187 ships and bundles the decoders. Fix: delete it.
+32. **No `destroy()`.** Tell: HMR or StrictMode shows two loops, a missing panel, a dead context. Fix: `createExperience()` returning `destroy()`, panel handed back, listeners on one AbortController, `engine.useDefaultMainLoop` restored.
+33. **Documented, not built.** Tell: a doc describes tiers, context loss or offscreen pause and the code has none. Fix: implement it or delete the claim, and test it.
+34. **A fixed stage over content after `<main>`.** Tell: the object floating over the footer. Fix: `stageOffset` scrolls the layers away with the last pin, rendering stops once they are gone.
+35. **A path never exercised.** Tell: the GLB route was written and only the procedural object ever ran. Fix: fixtures through the real loader (`assets/fixtures`).
+36. **Stretching the panel to a fixed size.** Tell: a 1:2 screen shows a squashed 1.6:1 panel. Fix: panel height from the slot's aspect.
+37. **World-space dissolve noise.** Tell: the noise swims while the object rotates. Fix: object-space front and noise.
+38. **Scattered edge order.** Tell: draw-on looks like specks appearing. Fix: `orderSegments` chains and visits nearest first.
+39. **Hull outlines on hard parts.** Tell: torn corners. Fix: `look.outline: 'auto'` gives hulls only to smooth parts.

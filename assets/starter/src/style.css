@@ -2,23 +2,31 @@
   --ink: #15171a;
   --paper: #f3f0e8;
   --accent: #ff5a36;
+  /* Optional: a dark chapter that is not a plain inversion of the light one.
+  --paper-dark: #0e1a2b;
+  --ink-dark: #e8eefc; */
   --bg: var(--paper);   /* animated from JS together with the 3D object */
-  --fg: var(--ink);
+  --fg: var(--ink);     /* picked from JS: whichever of ink / ink-dark reads better on --bg */
+  --stage-w: 100vw;     /* set from JS from the stuck .pin, so canvas, CSS3D layer and camera agree */
+  --stage-h: 100svh;
   color-scheme: light;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); }
 body { color: var(--fg); font: 18px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
 
+/* Layers, back to front: #bg, #css-layer (DOM panels in 3D), #stage (WebGL), main (text). */
 #bg        { position: fixed; inset: 0; z-index: 0; background: var(--bg); }
-#css-layer { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
-#stage     { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; display: block; }
-main       { position: relative; z-index: 3; }   /* text above the object. Swap 2 and 3 to put the object in front. */
+#css-layer { position: fixed; top: 0; left: 0; width: var(--stage-w); height: var(--stage-h); z-index: 1; pointer-events: none; overflow: hidden; }
+#stage     { position: fixed; top: 0; left: 0; width: var(--stage-w); height: var(--stage-h); z-index: 2; pointer-events: none; display: block; opacity: 0; transition: opacity 0.4s ease; }
+.stage-ready #stage, .no-webgl #stage { opacity: 1; }
+.verify #stage { transition: none; }
+main { position: relative; z-index: 3; }   /* text above the object. Swap 2 and 3 to put the object in front. */
 
 .chapter { height: 240vh; }
 .pin {
   position: sticky; top: 0;
-  height: 100vh; height: 100svh;
+  height: 100vh; height: 100svh;          /* svh: constant while a phone's URL bar slides */
   display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 4vw;
   padding: 0 6vw;
 }
@@ -28,9 +36,26 @@ main       { position: relative; z-index: 3; }   /* text above the object. Swap 
 .eyebrow { font: 600 0.75rem/1 ui-monospace, monospace; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin: 0 0 1rem; }
 .anchor { width: min(40vw, 62vh); aspect-ratio: 1; justify-self: center; } /* the 3D object fills this box */
 
+/* Poster: shown until the first frame renders, and as the fallback without WebGL. Add data-poster="/posters/x.png" to an .anchor. */
+.anchor { background: var(--poster, none) center / contain no-repeat; }
+.stage-ready .anchor { background: none; }
+
+.cta { display: inline-block; margin-top: 1.25rem; padding: 0.7rem 1.2rem; border: 2px solid var(--fg); border-radius: 999px; color: var(--fg); font-weight: 600; text-decoration: none; }
+.cta:hover { background: var(--fg); color: var(--bg); }
+a:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.skip { position: fixed; left: 1rem; top: -4rem; z-index: 10; padding: 0.6rem 1rem; background: var(--ink); color: var(--paper); border-radius: 6px; }
+.skip:focus { top: 1rem; }
+.end { position: relative; z-index: 3; min-height: 100vh; min-height: 100svh; display: grid; place-content: center; text-align: center; padding: 4rem 6vw; }
+
 .panel { width: 480px; height: 300px; backface-visibility: hidden; background: var(--paper); border: 2px solid var(--ink); border-radius: 6px; overflow: hidden; }
-.panel svg { display: block; }
+.panel svg { display: block; width: 100%; height: 100%; }
 .panel path { fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* The one contact cue: shared grain above canvas and page (contact: 'grain' in config.js). */
+.contact-grain body::after {
+  content: ""; position: fixed; inset: 0; z-index: 4; pointer-events: none; opacity: 0.07; mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
 
 @media (max-width: 800px) {
   .pin { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; padding: 0 6vw; }
@@ -38,8 +63,17 @@ main       { position: relative; z-index: 3; }   /* text above the object. Swap 
   .copy { align-self: end; }
   .anchor { width: min(70vw, 38vh); }
 }
-
+@media (max-height: 520px) and (orientation: landscape) {
+  .copy h1, .copy h2 { font-size: clamp(1.4rem, 4vw, 2.2rem); }
+  .copy p { font-size: 0.95rem; margin: 0.4rem 0; }
+}
 @media (prefers-reduced-motion: reduce) { .chapter { height: 100vh; } }
 
-.no-webgl #stage, .no-webgl #css-layer { display: none; }
-.no-webgl .anchor { background: color-mix(in srgb, var(--ink) 8%, transparent); border-radius: 12px; }
+.no-webgl #css-layer { display: none; }
+.no-webgl .anchor { background-color: color-mix(in srgb, var(--ink) 8%, transparent); border-radius: 12px; }
+.no-webgl .anchor[style*="--poster"] { background-color: transparent; }
+
+/* ?debug */
+.debug .anchor { outline: 1px dashed #e0e; }
+#stage-hud { position: fixed; left: 8px; bottom: 8px; z-index: 9999; margin: 0; padding: 6px 8px; font: 11px/1.4 ui-monospace, monospace; background: rgba(0, 0, 0, 0.75); color: #9f9; pointer-events: none; white-space: pre; }
+#stage-cross { position: fixed; left: -7px; top: -7px; width: 14px; height: 14px; border: 1px solid #e0e; border-radius: 50%; z-index: 9999; pointer-events: none; }
