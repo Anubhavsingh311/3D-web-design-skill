@@ -9,7 +9,7 @@ Build immersive, scroll-driven 3D web experiences using Three.js and Anime.js, i
 
 ## Installation
 
-1. Download the `3D-web-design-skill.zip` file.
+1. Download the `3D-web-design-skill.zip` file from the Releases tab.
 2. Open ChatGPT, Claude, or any other LLM that you use and navigate to **Settings → Skills** (or Plugins, depending on your interface).
 3. Drag and drop the ZIP file into the Skills/Plugins area.
 4. Complete the installation.
